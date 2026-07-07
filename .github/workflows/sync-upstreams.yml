@@ -1,0 +1,64 @@
+name: Sync upstreams
+
+on:
+  schedule:
+    # Daily at 06:00 UTC — both OmniRoute and oh-my-pi release ~daily.
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `git subtree` needs full history to compute the squash diff
+          # against each upstream's current `main`.
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "mywayai-bot"
+          git config user.email "mywayai-bot@users.noreply.github.com"
+
+      - name: Add upstream remotes
+        run: |
+          git remote add omniroute-upstream https://github.com/diegosouzapw/OmniRoute || true
+          git remote add omp-upstream https://github.com/can1357/oh-my-pi || true
+
+      - name: Create sync branch
+        run: git checkout -b "sync-upstreams-$(date -u +%Y%m%d)"
+
+      # Fails loudly (non-zero exit) on a subtree merge conflict per
+      # scripts/subtree-pull.sh's own contract — no PR is opened for a run
+      # that needs manual conflict resolution (see docs/upstream-sync.md).
+      - name: Pull both upstreams
+        run: ./scripts/subtree-pull.sh
+
+      - name: Check for changes
+        id: diff
+        run: |
+          if git diff --quiet main; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push sync branch
+        if: steps.diff.outputs.changed == 'true'
+        run: git push origin HEAD
+
+      - name: Open pull request
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr create \
+            --title "chore: sync upstreams ($(date -u +%Y-%m-%d))" \
+            --body "Automated \`git subtree pull --squash\` from both upstreams. Review the two squash-merge commits individually before merging — CI (typecheck + \`make e2e\`) must pass first." \
+            --base main \
+            --head "$(git branch --show-current)"
