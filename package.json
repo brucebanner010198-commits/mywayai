@@ -1,0 +1,7 @@
+{
+  "name": "mywayai",
+  "private": true,
+  "workspaces": [
+    "integrations/*"
+  ]
+}

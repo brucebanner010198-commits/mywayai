@@ -1,0 +1,19 @@
+{
+  "name": "@mywayai/launcher",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "mywayai": "src/cli.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mywayai/omniroute-bridge": "workspace:*",
+    "@oh-my-pi/pi-coding-agent": "16.3.11"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
