@@ -4,10 +4,11 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["ESNext"],
-    "types": ["bun-types"],
+    "types": ["bun"],
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true
