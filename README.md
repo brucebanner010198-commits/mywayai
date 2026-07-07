@@ -17,7 +17,7 @@ Both upstream projects release roughly daily, so both are vendored as `git subtr
 - `infra/` — docker-compose and a mock OpenAI-compatible provider for local/CI testing.
 
 See `docs/quickstart.md` to get running and `docs/architecture.md` for how the pieces fit together.
-- `docs/resilience-review.md` — fault analysis & hardening roadmap; `docs/adr/` — architecture decisions.
+- `docs/resilience-review.md` — fault analysis & hardening roadmap.
 
 ## License
 
