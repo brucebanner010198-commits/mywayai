@@ -1,0 +1,25 @@
+services:
+  omniroute:
+    build:
+      context: ../vendor/omniroute
+      target: runner-base
+    ports:
+      - "20128:20128"
+    environment:
+      PORT: "20128"
+      DATA_DIR: /app/data
+    volumes:
+      - omniroute-data:/app/data
+    restart: unless-stopped
+
+  mock-provider:
+    build:
+      context: ./mock-provider
+    ports:
+      - "9999:9999"
+    environment:
+      MOCK_PORT: "9999"
+    restart: unless-stopped
+
+volumes:
+  omniroute-data:
