@@ -3,6 +3,7 @@ export { provisionKey, readKeyFile, readKeyIdFile, requireKey, rotateKey, type P
 export { MOCK_COMBO_NAME, MOCK_PREFIX, seedMock, type SeedMockOptions } from "./seed.ts";
 export { writeModelsYaml, type WriteModelsYamlOptions } from "./models-yaml.ts";
 export { VALID_ROLE_IDS, writeRoleMapping, type RoleId, type WriteRoleMappingOptions } from "./roles.ts";
+export { readCollabRelayUrl, writeCollabConfig, type WriteCollabConfigOptions } from "./collab.ts";
 export {
   DEFAULT_OMNIROUTE_PORT,
   getAgentConfigYamlPath,

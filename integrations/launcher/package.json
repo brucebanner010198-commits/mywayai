@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@mywayai/omniroute-bridge": "workspace:*",
+    "@mywayai/remote-relay": "workspace:*",
     "@oh-my-pi/pi-coding-agent": "16.3.11"
   },
   "devDependencies": {
