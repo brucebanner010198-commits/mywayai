@@ -1,12 +1,13 @@
 // Upserts `modelRoles` entries in `~/.omp/agent/config.yml`, pointing omp
 // model roles at OmniRoute combos (`omniroute/<combo-name>`).
 
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import yaml from "js-yaml";
-import { bootstrapFetch } from "./http.ts";
+import { authedJson } from "./http.ts";
 import { getAgentConfigYamlPath, omniRouteBaseUrl } from "./paths.ts";
 import { requireKey } from "./keys.ts";
+import { loadYamlDoc } from "./yaml.ts";
 
 export const VALID_ROLE_IDS = [
   "default",
@@ -23,27 +24,10 @@ export const VALID_ROLE_IDS = [
 
 export type RoleId = (typeof VALID_ROLE_IDS)[number];
 
-type YamlDoc = Record<string, unknown>;
-
-async function loadYamlDoc(path: string): Promise<YamlDoc> {
-  try {
-    const raw = await readFile(path, "utf8");
-    const parsed = yaml.load(raw);
-    return parsed && typeof parsed === "object" ? (parsed as YamlDoc) : {};
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return {};
-    throw err;
-  }
-}
-
 async function fetchExistingComboNames(port?: number): Promise<string[]> {
   const key = await requireKey();
-  const res = await bootstrapFetch(`${omniRouteBaseUrl(port)}/api/combos`, {
-    headers: { Authorization: `Bearer ${key}` },
-  });
-  if (!res.ok) throw new Error(`Failed to list OmniRoute combos: ${res.status}`);
-  const data = (await res.json()) as { combos: Array<{ name: string }> };
-  return data.combos.map((c) => c.name);
+  const { combos } = await authedJson<{ combos: Array<{ name: string }> }>(omniRouteBaseUrl(port), key, "/api/combos");
+  return combos.map((c) => c.name);
 }
 
 export interface WriteRoleMappingOptions {

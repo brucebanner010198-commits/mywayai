@@ -15,3 +15,16 @@ export async function bootstrapFetch(url: string, init: RequestInit = {}): Promi
     signal: init.signal ?? AbortSignal.timeout(BOOTSTRAP_FETCH_TIMEOUT_MS),
   });
 }
+
+/** Authenticated JSON call: adds Bearer key + JSON content-type, throws a formatted error on non-2xx. */
+export async function authedJson<T>(base: string, key: string, path: string, init: RequestInit = {}): Promise<T> {
+  const res = await bootstrapFetch(`${base}${path}`, {
+    ...init,
+    headers: { "content-type": "application/json", Authorization: `Bearer ${key}`, ...init.headers },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`OmniRoute request failed: ${init.method ?? "GET"} ${path} -> ${res.status} ${body.slice(0, 300)}`);
+  }
+  return res.json() as Promise<T>;
+}

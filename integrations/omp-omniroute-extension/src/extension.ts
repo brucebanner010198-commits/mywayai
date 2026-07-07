@@ -196,6 +196,96 @@ async function notifyUnreachableOr(ctx: ExtensionCommandContext, fn: () => Promi
   }
 }
 
+async function handleCombos(ctx: ExtensionCommandContext, rest: string[]): Promise<void> {
+  if (rest[0] === "create") {
+    const [name, ...models] = rest.slice(1);
+    if (!name || models.length === 0) {
+      ctx.ui.notify("Usage: /omni combos create <name> <model...>", "error");
+      return;
+    }
+    await omni("/api/combos", {
+      method: "POST",
+      body: JSON.stringify({ name, models, strategy: "priority" }),
+    });
+    ctx.ui.notify(`Created combo "${name}" with ${models.length} model(s).`, "info");
+    return;
+  }
+  const { combos } = await omni<{ combos: Combo[] }>("/api/combos");
+  const roles = await readModelRoles();
+  const lines = combos.map(
+    (c) => `${c.name.padEnd(30)} ${(c.strategy ?? "priority").padEnd(12)} ${c.models?.length ?? 0} target(s)`,
+  );
+  const roleLines = Object.entries(roles)
+    .filter(([, v]) => v.startsWith("omniroute/"))
+    .map(([role, v]) => `  ${role} -> ${v.slice("omniroute/".length)}`);
+  ctx.ui.notify(
+    [
+      lines.length ? lines.join("\n") : "(no combos yet)",
+      roleLines.length ? `\nRoles -> omniroute/*:\n${roleLines.join("\n")}` : "",
+    ].join(""),
+    "info",
+  );
+}
+
+async function handleQuota(ctx: ExtensionCommandContext): Promise<void> {
+  ctx.ui.notify(renderJson(await omni("/api/quota/pools")), "info");
+}
+
+async function handleUsage(ctx: ExtensionCommandContext, rest: string[]): Promise<void> {
+  if (rest[0] === "log") {
+    ctx.ui.notify(renderJson(await omni("/api/usage/call-logs"), 10), "info");
+    return;
+  }
+  ctx.ui.notify(renderJson(await omni("/api/usage/analytics")), "info");
+}
+
+async function handleFallback(ctx: ExtensionCommandContext): Promise<void> {
+  ctx.ui.notify(renderJson(await omni("/api/fallback/chains")), "info");
+}
+
+async function handleHealth(ctx: ExtensionCommandContext): Promise<void> {
+  ctx.ui.notify(renderJson(await omni("/api/providers/health-matrix")), "info");
+}
+
+async function handleSessions(ctx: ExtensionCommandContext): Promise<void> {
+  const data = await omni<{ count: number; byApiKey: unknown }>("/api/sessions");
+  ctx.ui.notify(`count: ${data.count}\nbyApiKey: ${JSON.stringify(data.byApiKey)}`, "info");
+}
+
+async function handleRole(ctx: ExtensionCommandContext, rest: string[]): Promise<void> {
+  const [role, combo] = rest;
+  if (!role || !combo) {
+    ctx.ui.notify("Usage: /omni role <role> <combo>", "error");
+    return;
+  }
+  await writeRoleMappingHere(role, combo);
+  await ctx.reload();
+  ctx.ui.notify(`Mapped role "${role}" -> omniroute/${combo} (reloaded).`, "info");
+}
+
+async function handleKey(ctx: ExtensionCommandContext, rest: string[]): Promise<void> {
+  if (rest[0] === "rotate") {
+    await rotateKeyHere();
+    ctx.ui.notify("OmniRoute API key rotated.", "info");
+    return;
+  }
+  ctx.ui.notify("Usage: /omni key rotate", "error");
+}
+
+const OMNI_USAGE = [
+  "Usage: /omni <combos|combos create|quota|usage|usage log|fallback|health|sessions|role|key rotate>",
+  "  combos                        List combos + role mappings",
+  "  combos create <name> <model>  Create a combo",
+  "  quota                         Show quota pools",
+  "  usage                         Show usage analytics summary",
+  "  usage log                     Show the last 10 call log entries",
+  "  fallback                      Show fallback chains",
+  "  health                        Show provider health matrix",
+  "  sessions                      Show live SSE session counts",
+  "  role <role> <combo>           Map an omp role to a combo (live)",
+  "  key rotate                    Regenerate the OmniRoute API key",
+].join("\n");
+
 export default function omniRouteExtension(pi: ExtensionAPI): void {
   const { z } = pi.zod;
 
@@ -224,112 +314,24 @@ export default function omniRouteExtension(pi: ExtensionAPI): void {
 
       await notifyUnreachableOr(ctx, async () => {
         switch (sub) {
-          case "combos": {
-            if (rest[0] === "create") {
-              const [name, ...models] = rest.slice(1);
-              if (!name || models.length === 0) {
-                ctx.ui.notify("Usage: /omni combos create <name> <model...>", "error");
-                return;
-              }
-              await omni("/api/combos", {
-                method: "POST",
-                body: JSON.stringify({ name, models, strategy: "priority" }),
-              });
-              ctx.ui.notify(`Created combo "${name}" with ${models.length} model(s).`, "info");
-              return;
-            }
-            const { combos } = await omni<{ combos: Combo[] }>("/api/combos");
-            const roles = await readModelRoles();
-            const lines = combos.map(
-              (c) => `${c.name.padEnd(30)} ${(c.strategy ?? "priority").padEnd(12)} ${c.models?.length ?? 0} target(s)`,
-            );
-            const roleLines = Object.entries(roles)
-              .filter(([, v]) => v.startsWith("omniroute/"))
-              .map(([role, v]) => `  ${role} -> ${v.slice("omniroute/".length)}`);
-            ctx.ui.notify(
-              [
-                lines.length ? lines.join("\n") : "(no combos yet)",
-                roleLines.length ? `\nRoles -> omniroute/*:\n${roleLines.join("\n")}` : "",
-              ].join(""),
-              "info",
-            );
-            return;
-          }
-
-          case "quota": {
-            const data = await omni("/api/quota/pools");
-            ctx.ui.notify(renderJson(data), "info");
-            return;
-          }
-
-          case "usage": {
-            if (rest[0] === "log") {
-              const data = await omni("/api/usage/call-logs");
-              ctx.ui.notify(renderJson(data, 10), "info");
-              return;
-            }
-            const data = await omni("/api/usage/analytics");
-            ctx.ui.notify(renderJson(data), "info");
-            return;
-          }
-
-          case "fallback": {
-            const data = await omni("/api/fallback/chains");
-            ctx.ui.notify(renderJson(data), "info");
-            return;
-          }
-
-          case "health": {
-            const data = await omni("/api/providers/health-matrix");
-            ctx.ui.notify(renderJson(data), "info");
-            return;
-          }
-
-          case "sessions": {
-            const data = await omni<{ count: number; byApiKey: unknown }>("/api/sessions");
-            ctx.ui.notify(`count: ${data.count}\nbyApiKey: ${JSON.stringify(data.byApiKey)}`, "info");
-            return;
-          }
-
-          case "role": {
-            const [role, combo] = rest;
-            if (!role || !combo) {
-              ctx.ui.notify("Usage: /omni role <role> <combo>", "error");
-              return;
-            }
-            await writeRoleMappingHere(role, combo);
-            await ctx.reload();
-            ctx.ui.notify(`Mapped role "${role}" -> omniroute/${combo} (reloaded).`, "info");
-            return;
-          }
-
-          case "key": {
-            if (rest[0] === "rotate") {
-              await rotateKeyHere();
-              ctx.ui.notify("OmniRoute API key rotated.", "info");
-              return;
-            }
-            ctx.ui.notify("Usage: /omni key rotate", "error");
-            return;
-          }
-
+          case "combos":
+            return handleCombos(ctx, rest);
+          case "quota":
+            return handleQuota(ctx);
+          case "usage":
+            return handleUsage(ctx, rest);
+          case "fallback":
+            return handleFallback(ctx);
+          case "health":
+            return handleHealth(ctx);
+          case "sessions":
+            return handleSessions(ctx);
+          case "role":
+            return handleRole(ctx, rest);
+          case "key":
+            return handleKey(ctx, rest);
           default:
-            ctx.ui.notify(
-              [
-                "Usage: /omni <combos|combos create|quota|usage|usage log|fallback|health|sessions|role|key rotate>",
-                "  combos                        List combos + role mappings",
-                "  combos create <name> <model>  Create a combo",
-                "  quota                         Show quota pools",
-                "  usage                         Show usage analytics summary",
-                "  usage log                     Show the last 10 call log entries",
-                "  fallback                      Show fallback chains",
-                "  health                        Show provider health matrix",
-                "  sessions                      Show live SSE session counts",
-                "  role <role> <combo>           Map an omp role to a combo (live)",
-                "  key rotate                    Regenerate the OmniRoute API key",
-              ].join("\n"),
-              "info",
-            );
+            ctx.ui.notify(OMNI_USAGE, "info");
         }
       });
     },

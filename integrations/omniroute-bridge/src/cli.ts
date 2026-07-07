@@ -6,7 +6,7 @@
 import { isUp, provisionKey, readKeyFile, rotateKey, seedMock, startOmniRoute, stopOmniRoute } from "./index.ts";
 import { writeModelsYaml } from "./models-yaml.ts";
 import { writeRoleMapping } from "./roles.ts";
-import { getKeyFile, getPidFile } from "./paths.ts";
+import { getKeyFile, getPidFile, resolveOmniRoutePort } from "./paths.ts";
 
 function parseFlags(args: string[]): { positionals: string[]; flags: Record<string, string> } {
   const positionals: string[] = [];
@@ -49,7 +49,7 @@ async function main(): Promise<void> {
   switch (command) {
     case "start":
       await startOmniRoute({ port, nodeBinDir: flags["node-bin-dir"] });
-      console.log(`OmniRoute is up on port ${port ?? 20128}.`);
+      console.log(`OmniRoute is up on port ${resolveOmniRoutePort(port)}.`);
       return;
 
     case "stop":

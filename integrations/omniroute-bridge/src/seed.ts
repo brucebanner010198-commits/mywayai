@@ -2,7 +2,7 @@
 // runs have something to route through without a real upstream provider.
 // Never called by `mywayai up` unless `--seed-mock` is passed.
 
-import { bootstrapFetch } from "./http.ts";
+import { authedJson, bootstrapFetch } from "./http.ts";
 import { omniRouteBaseUrl } from "./paths.ts";
 import { requireKey } from "./keys.ts";
 
@@ -16,18 +16,6 @@ interface ProviderNode {
 
 interface ProviderConnection {
   provider: string;
-}
-
-async function authedJson<T>(base: string, key: string, path: string, init: RequestInit = {}): Promise<T> {
-  const res = await bootstrapFetch(`${base}${path}`, {
-    ...init,
-    headers: { "content-type": "application/json", Authorization: `Bearer ${key}`, ...init.headers },
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`OmniRoute request failed: ${init.method ?? "GET"} ${path} -> ${res.status} ${body.slice(0, 300)}`);
-  }
-  return res.json() as Promise<T>;
 }
 
 async function ensureMockProviderNode(base: string, key: string, mockPort: number): Promise<string> {
