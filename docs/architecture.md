@@ -147,6 +147,14 @@ extensively and conclusively narrowed to OmniRoute's own server:
   application code — consistent with a stalled read on some I/O the create-key
   handler's business logic performs, but the exact statement was not
   isolated without instrumenting vendored source, which this repo does not do.
+- **Confirmed deterministic on a completely fresh environment.** Reproduced
+  with identical timing (~43.5s, matching the retry-with-backoff worst case)
+  on a from-scratch GitHub Actions `ubuntu-latest` runner — different OS,
+  different hardware/virtualization, zero prior state, first-ever boot, first
+  attempt (see PR #1's `build-and-e2e` CI run). This rules out any theory
+  tied to a specific local machine, accumulated server state, or repeated
+  usage: a genuinely first-ever `mywayai up` against a genuinely fresh
+  OmniRoute install hits this reliably, not just occasionally.
 
 Since the root cause is inside `vendor/omniroute` and this repo never patches
 vendored trees, the mitigation lives entirely in `integrations/omniroute-bridge`:
