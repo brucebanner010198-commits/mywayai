@@ -4,6 +4,7 @@
 // functions directly rather than shelling out to this CLI.
 
 import { isUp, provisionKey, readKeyFile, rotateKey, seedMock, startOmniRoute, stopOmniRoute } from "./index.ts";
+import { writeCollabConfig } from "./collab.ts";
 import { writeModelsYaml } from "./models-yaml.ts";
 import { writeRoleMapping } from "./roles.ts";
 import { getKeyFile, getPidFile, resolveOmniRoutePort } from "./paths.ts";
@@ -36,6 +37,7 @@ function usage(): never {
       "  seed-mock [--port N] [--mock-port N]     Seed the mock provider/connection/combo",
       "  write-models [--port N]                 Upsert the omniroute provider in models.yml",
       "  write-roles <role>=<combo> ... [--port N]  Map omp roles to OmniRoute combos in config.yml",
+      "  write-collab --relay-url <url> [--display-name N]  Point /collab at a relay in config.yml",
     ].join("\n"),
   );
   process.exit(1);
@@ -97,6 +99,14 @@ async function main(): Promise<void> {
       }
       await writeRoleMapping(map, { port });
       console.log(`Wrote role mapping: ${JSON.stringify(map)}`);
+      return;
+    }
+
+    case "write-collab": {
+      const relayUrl = flags["relay-url"];
+      if (!relayUrl) usage();
+      await writeCollabConfig({ relayUrl, displayName: flags["display-name"] });
+      console.log(`Wrote collab.relayUrl = ${relayUrl}`);
       return;
     }
 
