@@ -10,7 +10,7 @@
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@oh-my-pi/pi-coding-agent";
 import { chmod, mkdir, readFile } from "node:fs/promises";
-import { homedir, hostname } from "node:os";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import yaml from "js-yaml";
 
@@ -182,18 +182,6 @@ async function readModelRoles(): Promise<Record<string, string>> {
   }
 }
 
-async function readApprovalMode(): Promise<string> {
-  try {
-    const parsed = yaml.load(await readFile(agentConfigYamlPath(), "utf8"));
-    const doc = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
-    const tools = doc.tools && typeof doc.tools === "object" ? (doc.tools as Record<string, unknown>) : {};
-    // Absence means the SDK's own documented default (vendor/oh-my-pi/docs/approval-mode.md).
-    return typeof tools.approvalMode === "string" ? tools.approvalMode : "yolo";
-  } catch {
-    return "yolo";
-  }
-}
-
 interface Combo {
   name: string;
   strategy?: string;
@@ -316,31 +304,6 @@ export default function omniRouteExtension(pi: ExtensionAPI): void {
         : `OmniRoute is not running — start it with \`mywayai up\`.`,
       reachable ? "info" : "warning",
     );
-
-    // Remote Control (docs/adr/0002-remote-control.md): session naming so
-    // multiple mywayai instances are distinguishable when shared, an
-    // approval-mode safety warning, and auto-starting /collab against the
-    // relay mywayai wrote to config.yml (writeCollabConfig). Only when the
-    // launcher set MYWAYAI_REMOTE=1 (`mywayai up --remote` / `mywayai
-    // daemon up --remote`) — never silently, and never bypassing approval:
-    // /collab guests can only prompt/interrupt, never skip tool_call
-    // hooks (vendor/oh-my-pi/docs/collab.md, docs/remote-control-threat-model.md).
-    const sessionName = process.env.MYWAYAI_SESSION_NAME ?? `${hostname()}:${process.env.OMNIROUTE_PORT ?? DEFAULT_PORT}`;
-    await pi.setSessionName(sessionName);
-
-    if (process.env.MYWAYAI_REMOTE === "1") {
-      const approvalMode = await readApprovalMode();
-      if (approvalMode === "yolo") {
-        ctx.ui.notify(
-          "Remote control is starting with tools.approvalMode=yolo — every write/exec tool call, " +
-            "including ones a remote guest's chat message triggers, will auto-run with no local " +
-            "confirmation. Set tools.approvalMode: write (or always-ask) in ~/.omp/agent/config.yml " +
-            "if remote-triggered actions should require local approval first.",
-          "warning",
-        );
-      }
-      pi.sendUserMessage("/collab");
-    }
   });
 
   pi.registerCommand("omni", {

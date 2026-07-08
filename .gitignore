@@ -5,6 +5,3 @@ dist/
 .remember/tmp/
 docs/adr/
 docs/resilience-review.md
-docs/remote-control.md
-docs/remote-control-threat-model.md
-docs/remote-control-test-checklist.md
