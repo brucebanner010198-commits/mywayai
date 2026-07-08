@@ -14,7 +14,7 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           # `git subtree` needs full history to compute the squash diff
           # against each upstream's current `main`.
@@ -27,11 +27,11 @@ jobs:
 
       - name: Add upstream remotes
         run: |
-          git remote add omniroute-upstream https://github.com/diegosouzapw/OmniRoute || true
-          git remote add omp-upstream https://github.com/can1357/oh-my-pi || true
+          git remote get-url omniroute-upstream 2>/dev/null | grep -qx https://github.com/diegosouzapw/OmniRoute || git remote add omniroute-upstream https://github.com/diegosouzapw/OmniRoute
+          git remote get-url omp-upstream 2>/dev/null | grep -qx https://github.com/can1357/oh-my-pi || git remote add omp-upstream https://github.com/can1357/oh-my-pi
 
       - name: Create sync branch
-        run: git checkout -b "sync-upstreams-$(date -u +%Y%m%d)"
+        run: git checkout -b "sync-upstreams-$(date -u +%Y%m%d)-${{ github.run_id }}"
 
       # Fails loudly (non-zero exit) on a subtree merge conflict per
       # scripts/subtree-pull.sh's own contract — no PR is opened for a run
