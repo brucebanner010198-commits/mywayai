@@ -5,7 +5,7 @@
 // serialization across concurrent writers via lock.ts.
 
 import { randomUUID } from "node:crypto";
-import { chmod, mkdir, readFile, rename, rm } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { withLock } from "./lock.ts";
 import { getRegistryFile, getStateDir } from "./paths.ts";
@@ -75,8 +75,7 @@ async function atomicWrite(entries: SessionEntry[]): Promise<void> {
   const file = getRegistryFile();
   await mkdir(dirname(file), { recursive: true, mode: 0o700 });
   const tmp = `${file}.tmp-${randomUUID()}`;
-  await Bun.write(tmp, JSON.stringify(entries, null, 2));
-  await chmod(tmp, 0o600);
+  await writeFile(tmp, JSON.stringify(entries, null, 2), { mode: 0o600 });
   await rename(tmp, file);
 }
 

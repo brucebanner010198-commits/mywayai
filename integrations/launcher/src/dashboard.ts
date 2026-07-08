@@ -7,7 +7,7 @@
 // and the OmniRoute-backed login gate have been checked.
 
 import { openSync } from "node:fs";
-import { chmod, mkdir, readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -217,8 +217,7 @@ async function readOrCreateSecret(): Promise<Buffer> {
     const missing = !!err && typeof err === "object" && "code" in err && err.code === "ENOENT";
     if (!missing) throw err;
     const secret = randomBytes(32);
-    await Bun.write(getDashboardSecretFile(), secret);
-    await chmod(getDashboardSecretFile(), 0o600);
+    await writeFile(getDashboardSecretFile(), secret, { mode: 0o600 });
     return secret;
   }
 }
@@ -416,8 +415,7 @@ function redirect(location: string, headers?: Record<string, string>): Response 
 
 async function writePidFile(pid: number, host: string, port: number): Promise<void> {
   await mkdir(getStateDir(), { recursive: true, mode: 0o700 });
-  await Bun.write(getDashboardPidFile(), `${pid}\n${host}:${port}`);
-  await chmod(getDashboardPidFile(), 0o600);
+  await writeFile(getDashboardPidFile(), `${pid}\n${host}:${port}`, { mode: 0o600 });
 }
 
 async function readDashboardPid(): Promise<DashboardPidInfo | undefined> {
