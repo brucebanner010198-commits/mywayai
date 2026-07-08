@@ -8,8 +8,8 @@
 // liveness, retry with backoff, release.
 
 import { randomUUID } from "node:crypto";
-import { link, mkdir, readFile, rm, stat, unlink, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { link, readFile, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { ensureStateDir } from "./paths.ts";
 
 export interface LockOptions {
   /** Total time to wait for the lock before giving up. */
@@ -89,7 +89,7 @@ async function clearStaleLock(lockPath: string, staleMs: number): Promise<void> 
 export async function acquireLock(filePath: string, options: LockOptions = {}): Promise<() => Promise<void>> {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const lockPath = `${filePath}.lock`;
-  await mkdir(dirname(filePath), { recursive: true, mode: 0o700 });
+  await ensureStateDir();
 
   const token = randomUUID();
   const deadline = Date.now() + opts.timeoutMs;

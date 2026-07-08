@@ -11,7 +11,7 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@oh-my-pi/pi-coding-agent";
 import type { SessionEntry } from "@mywayai/session-registry";
 import { isEntryAlive, readRegistry, removeRegistryEntry, upsertRegistryEntry } from "@mywayai/session-registry";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import yaml from "js-yaml";
@@ -169,6 +169,8 @@ async function rotateKeyHere(): Promise<string> {
   const data = (await res.json()) as { key?: string; id?: string };
   if (!data.key) throw new Error("OmniRoute regenerate response did not include a plaintext key.");
 
+  await mkdir(stateDir(), { recursive: true, mode: 0o700 });
+  await chmod(stateDir(), 0o700);
   await writeFile(keyFile(), data.key, { mode: 0o600 });
   if (data.id) {
     await writeFile(keyIdFile(), data.id, { mode: 0o600 });

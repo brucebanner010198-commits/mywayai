@@ -11,10 +11,10 @@
 // the one-time key mint. An unauthenticated attempt is still tried first, in
 // case a user has explicitly set `requireLogin: false`.
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { bootstrapFetch } from "./http.ts";
-import { getKeyFile, getKeyIdFile, getOmniRouteVendorDir, getStateDir, omniRouteBaseUrl } from "./paths.ts";
+import { ensureStateDir, getKeyFile, getKeyIdFile, getOmniRouteVendorDir, omniRouteBaseUrl } from "./paths.ts";
 
 interface CreatedKey {
   key: string;
@@ -22,7 +22,7 @@ interface CreatedKey {
 }
 
 async function persistKey(key: string, id?: string): Promise<void> {
-  await mkdir(getStateDir(), { recursive: true, mode: 0o700 });
+  await ensureStateDir();
   await writeFile(getKeyFile(), key, { mode: 0o600 });
   if (id) {
     await writeFile(getKeyIdFile(), id, { mode: 0o600 });

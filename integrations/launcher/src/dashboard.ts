@@ -14,12 +14,12 @@ import { fileURLToPath } from "node:url";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import {
   DEFAULT_OMNIROUTE_PORT,
+  ensureStateDir,
   getDashboardLogFile,
   getDashboardPidFile,
   getDashboardSecretFile,
   getLogDir,
   getRepoRoot,
-  getStateDir,
   omniRouteBaseUrl,
   resolveOmniRoutePort,
 } from "@mywayai/omniroute-bridge";
@@ -208,7 +208,7 @@ function clearCookieHeader(request: Request): string {
 }
 
 async function readOrCreateSecret(): Promise<Buffer> {
-  await mkdir(getStateDir(), { recursive: true, mode: 0o700 });
+  await ensureStateDir();
   try {
     const existing = await readFile(getDashboardSecretFile());
     if (existing.length >= 32) return existing;
@@ -414,7 +414,7 @@ function redirect(location: string, headers?: Record<string, string>): Response 
 }
 
 async function writePidFile(pid: number, host: string, port: number): Promise<void> {
-  await mkdir(getStateDir(), { recursive: true, mode: 0o700 });
+  await ensureStateDir();
   await writeFile(getDashboardPidFile(), `${pid}\n${host}:${port}`, { mode: 0o600 });
 }
 
@@ -515,7 +515,7 @@ export async function startDashboardProcess(opts: DashboardOptions = {}): Promis
     await rm(getDashboardPidFile(), { force: true });
   }
 
-  await mkdir(getStateDir(), { recursive: true, mode: 0o700 });
+  await ensureStateDir();
   await mkdir(getLogDir(), { recursive: true, mode: 0o700 });
   const logFd = openSync(getDashboardLogFile(), "a");
   const cmd = [process.execPath, fileURLToPath(import.meta.url), "up"];

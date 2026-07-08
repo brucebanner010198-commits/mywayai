@@ -5,10 +5,9 @@
 // serialization across concurrent writers via lock.ts.
 
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { withLock } from "./lock.ts";
-import { getRegistryFile, getStateDir } from "./paths.ts";
+import { ensureStateDir, getRegistryFile, getStateDir } from "./paths.ts";
 import type { SessionEntry } from "./types.ts";
 
 // A recycled pid (common over a long-running machine's uptime) would
@@ -73,7 +72,7 @@ export async function readLiveRegistry(): Promise<SessionEntry[]> {
 
 async function atomicWrite(entries: SessionEntry[]): Promise<void> {
   const file = getRegistryFile();
-  await mkdir(dirname(file), { recursive: true, mode: 0o700 });
+  await ensureStateDir();
   const tmp = `${file}.tmp-${randomUUID()}`;
   await writeFile(tmp, JSON.stringify(entries, null, 2), { mode: 0o600 });
   await rename(tmp, file);
