@@ -3,10 +3,11 @@
 // file, and dead entries (by pid or staleness) are pruned rather than
 // lingering as dead RCE-capable links.
 
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, test } from "bun:test";
+import { acquireLock } from "./lock.ts";
 import { readRegistry, upsertRegistryEntry } from "./registry.ts";
 import type { SessionEntry } from "./types.ts";
 
@@ -64,4 +65,17 @@ test("a live pid with a stale lastActiveAt is pruned (guards against pid recycli
   await upsertRegistryEntry(entry("fresh"));
   const final = await readRegistry();
   expect(final.map((e) => e.id)).toEqual(["fresh"]);
+});
+
+test("a lock held by a still-alive pid is never stolen, even past staleMs (Group A)", async () => {
+  const target = join(stateDir, "lock-target");
+  const lockPath = `${target}.lock`;
+  await mkdir(stateDir, { recursive: true });
+  // Simulate a lock that has aged well past staleMs, held by this (alive) process —
+  // written directly so the test never depends on real wall-clock waiting.
+  await writeFile(lockPath, JSON.stringify({ pid: process.pid, token: "external-holder", acquiredAt: Date.now() - 10_000 }));
+
+  await expect(acquireLock(target, { staleMs: 100, timeoutMs: 150, retryDelayMs: 10 })).rejects.toThrow(
+    /Timed out waiting for lock/,
+  );
 });

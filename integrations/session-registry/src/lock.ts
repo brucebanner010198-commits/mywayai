@@ -80,8 +80,7 @@ async function clearStaleLock(lockPath: string, staleMs: number): Promise<void> 
     if (isStale) await rm(lockPath, { force: true });
     return;
   }
-  const expired = Date.now() - info.acquiredAt > staleMs;
-  if (expired || !isProcessAlive(info.pid)) {
+  if (!isProcessAlive(info.pid)) {
     await rm(lockPath, { force: true });
   }
 }
