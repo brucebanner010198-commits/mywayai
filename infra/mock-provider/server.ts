@@ -138,8 +138,14 @@ function handleChatCompletions(body: ChatCompletionRequest): Response {
   });
 }
 
+function parsePort(value: string | undefined, label: string): number | undefined {
+  if (value === undefined || value === "") return undefined;
+  if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 65_535) throw new Error(`${label} must be an integer 1–65535`);
+  return Number(value);
+}
+
 export function serve(port?: number): Bun.Server<undefined> {
-  const resolvedPort = port ?? Number(process.env.MOCK_PORT ?? 9999);
+  const resolvedPort = port ?? parsePort(process.env.MOCK_PORT, "MOCK_PORT") ?? 9999;
   return Bun.serve({
     // Bun defaults to 0.0.0.0 (LAN-exposed, unauthenticated echo API) when
     // no hostname is set. Default to loopback-only for a bare host process

@@ -15,6 +15,7 @@ import {
   getPidFile,
   getRepoRoot,
   isUp,
+  parsePort,
   provisionKey,
   readKeyFile,
   resolveOmniRoutePort,
@@ -38,6 +39,9 @@ interface ParsedArgs {
   passthrough: string[];
 }
 
+const CLI_BOOLEAN_FLAGS: Record<string, true> = { "seed-mock": true, follow: true, "allow-no-login": true };
+const CLI_VALUE_FLAGS: Record<string, true> = { port: true, host: true };
+
 function parseArgs(argv: string[]): ParsedArgs {
   const sepIndex = argv.indexOf("--");
   const own = sepIndex === -1 ? argv : argv.slice(0, sepIndex);
@@ -46,11 +50,27 @@ function parseArgs(argv: string[]): ParsedArgs {
   const flags: Record<string, string | boolean> = {};
   for (let i = 0; i < own.length; i++) {
     const arg = own[i];
-    if (arg === "--seed-mock") flags["seed-mock"] = true;
-    else if (arg === "--port") flags.port = own[++i] ?? "";
-    else if (arg === "-f" || arg === "--follow") flags.follow = true;
-    else if (arg === "--host") flags.host = own[++i] ?? "";
-    else if (arg === "--allow-no-login") flags["allow-no-login"] = true;
+    if (arg === "-f") {
+      flags.follow = true;
+      continue;
+    }
+    if (!arg?.startsWith("--")) {
+      throw new Error(`Unrecognized argument: "${arg}"`);
+    }
+    const name = arg.slice(2);
+    if (CLI_BOOLEAN_FLAGS[name]) {
+      flags[name] = true;
+      continue;
+    }
+    if (CLI_VALUE_FLAGS[name]) {
+      const next = own[++i];
+      if (next === undefined || next.startsWith("--")) {
+        throw new Error(`--${name} requires a value`);
+      }
+      flags[name] = next;
+      continue;
+    }
+    throw new Error(`Unknown flag: --${name}`);
   }
   return { flags, passthrough };
 }
@@ -98,7 +118,7 @@ async function ensureExtensionInstalled(): Promise<void> {
 
 /** Shared OmniRoute boot sequence used by `up`. */
 async function bootOmniRouteAndExtension(flags: ParsedArgs["flags"]): Promise<{ port: number | undefined }> {
-  const port = flags.port ? Number(flags.port) : undefined;
+  const port = parsePort(typeof flags.port === "string" ? flags.port : undefined, "--port");
   const nodeBinDir = process.env.MYWAYAI_NODE_BIN_DIR;
 
   await ensureOmniRouteBuilt(nodeBinDir);
@@ -125,7 +145,7 @@ async function cmdDown(): Promise<void> {
 }
 
 async function cmdStatus({ flags }: ParsedArgs): Promise<void> {
-  const port = flags.port ? Number(flags.port) : undefined;
+  const port = parsePort(typeof flags.port === "string" ? flags.port : undefined, "--port");
   const up = await isUp(port);
   const key = await readKeyFile();
   console.log(`OmniRoute: ${up ? "up" : "down"} (port ${resolveOmniRoutePort(port)})`);
@@ -147,7 +167,7 @@ async function cmdSync(): Promise<void> {
 
 function dashboardOptionsFromFlags(flags: ParsedArgs["flags"]): DashboardOptions {
   return {
-    port: flags.port ? Number(flags.port) : undefined,
+    port: parsePort(typeof flags.port === "string" ? flags.port : undefined, "--port"),
     host: typeof flags.host === "string" && flags.host ? flags.host : undefined,
     allowNoLogin: flags["allow-no-login"] === true,
   };

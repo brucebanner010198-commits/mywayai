@@ -86,10 +86,17 @@ function parseDashboardArgs(argv: string[]): ParsedDashboardArgs {
   const parsed: ParsedDashboardArgs = { command, allowNoLogin: false };
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
-    if (arg === "--allow-no-login") parsed.allowNoLogin = true;
-    else if (arg === "--host") parsed.host = rest[++i];
-    else if (arg === "--port") parsed.port = Number(rest[++i]);
-    else if (arg === "--omniroute-port") parsed.omniRoutePort = Number(rest[++i]);
+    if (arg === "--allow-no-login") {
+      parsed.allowNoLogin = true;
+    } else if (arg === "--host" || arg === "--port" || arg === "--omniroute-port") {
+      const next = rest[++i];
+      if (next === undefined || next.startsWith("--")) {
+        throw new Error(`${arg} requires a value`);
+      }
+      if (arg === "--host") parsed.host = next;
+      else if (arg === "--port") parsed.port = Number(next);
+      else parsed.omniRoutePort = Number(next);
+    }
   }
   return parsed;
 }

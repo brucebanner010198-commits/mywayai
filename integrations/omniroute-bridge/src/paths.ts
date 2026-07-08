@@ -86,6 +86,19 @@ export function getExtensionsDir(): string {
 
 export const DEFAULT_OMNIROUTE_PORT = 20128;
 
+/** Strict port validator: undefined/"" -> undefined; else requires an integer in [1, 65535], throwing an actionable error otherwise. Route every port parsed from env/argv through this. */
+export function parsePort(value: string | undefined, label: string): number | undefined {
+  if (value === undefined || value === "") return undefined;
+  if (!/^\d+$/.test(value)) {
+    throw new Error(`${label} must be an integer 1–65535`);
+  }
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1 || n > 65_535) {
+    throw new Error(`${label} must be an integer 1–65535`);
+  }
+  return n;
+}
+
 // A freshly-booted OmniRoute can be slow to answer its first authenticated
 // request while it finishes heavy startup work (migrations, Arena Elo sync,
 // etc.) even though it already accepts TCP connections — a short timeout on
@@ -95,8 +108,7 @@ export const BOOTSTRAP_FETCH_TIMEOUT_MS = 20_000;
 
 export function resolveOmniRoutePort(explicit?: number): number {
   if (explicit !== undefined) return explicit;
-  const fromEnv = process.env.OMNIROUTE_PORT;
-  return fromEnv ? Number(fromEnv) : DEFAULT_OMNIROUTE_PORT;
+  return parsePort(process.env.OMNIROUTE_PORT, "OMNIROUTE_PORT") ?? DEFAULT_OMNIROUTE_PORT;
 }
 
 export function omniRouteBaseUrl(port?: number): string {

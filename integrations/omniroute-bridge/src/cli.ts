@@ -6,7 +6,7 @@
 import { isUp, provisionKey, readKeyFile, rotateKey, seedMock, startOmniRoute, stopOmniRoute } from "./index.ts";
 import { writeModelsYaml } from "./models-yaml.ts";
 import { writeRoleMapping } from "./roles.ts";
-import { getKeyFile, getPidFile, resolveOmniRoutePort } from "./paths.ts";
+import { getKeyFile, getPidFile, parsePort, resolveOmniRoutePort } from "./paths.ts";
 
 const BOOLEAN_FLAGS: Record<string, true> = { "print-key": true };
 
@@ -47,7 +47,7 @@ function usage(): never {
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
   const { positionals, flags } = parseFlags(rest);
-  const port = flags.port ? Number(flags.port) : undefined;
+  const port = parsePort(flags.port, "--port");
 
   switch (command) {
     case "start":
@@ -81,7 +81,7 @@ async function main(): Promise<void> {
     }
 
     case "seed-mock":
-      await seedMock({ port, mockPort: flags["mock-port"] ? Number(flags["mock-port"]) : undefined });
+      await seedMock({ port, mockPort: parsePort(flags["mock-port"], "--mock-port") });
       console.log("Seeded mock provider, connection, and test-combo.");
       return;
 

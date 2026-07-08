@@ -23,5 +23,6 @@ export {
   getRepoRoot,
   getStateDir,
   omniRouteBaseUrl,
+  parsePort,
   resolveOmniRoutePort,
 } from "./paths.ts";

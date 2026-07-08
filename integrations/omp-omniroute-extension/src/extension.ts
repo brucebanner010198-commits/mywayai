@@ -62,8 +62,14 @@ function agentConfigYamlPath(): string {
   return join(agentDir(), "config.yml");
 }
 
+function parsePort(value: string | undefined, label: string): number | undefined {
+  if (value === undefined || value === "") return undefined;
+  if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 65_535) throw new Error(`${label} must be an integer 1–65535`);
+  return Number(value);
+}
+
 function baseUrl(): string {
-  const port = process.env.OMNIROUTE_PORT ? Number(process.env.OMNIROUTE_PORT) : DEFAULT_PORT;
+  const port = parsePort(process.env.OMNIROUTE_PORT, "OMNIROUTE_PORT") ?? DEFAULT_PORT;
   return `http://localhost:${port}`;
 }
 

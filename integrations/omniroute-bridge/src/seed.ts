@@ -3,7 +3,7 @@
 // Never called by `mywayai up` unless `--seed-mock` is passed.
 
 import { authedJson, bootstrapFetch } from "./http.ts";
-import { omniRouteBaseUrl } from "./paths.ts";
+import { omniRouteBaseUrl, parsePort } from "./paths.ts";
 import { requireKey } from "./keys.ts";
 
 export const MOCK_PREFIX = "mock";
@@ -74,7 +74,7 @@ export interface SeedMockOptions {
 
 export async function seedMock(opts: SeedMockOptions = {}): Promise<void> {
   const base = omniRouteBaseUrl(opts.port);
-  const mockPort = opts.mockPort ?? Number(process.env.MOCK_PORT ?? 9999);
+  const mockPort = opts.mockPort ?? parsePort(process.env.MOCK_PORT, "MOCK_PORT") ?? 9999;
   const key = await requireKey();
 
   const nodeId = await ensureMockProviderNode(base, key, mockPort);
