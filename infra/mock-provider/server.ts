@@ -141,6 +141,14 @@ function handleChatCompletions(body: ChatCompletionRequest): Response {
 export function serve(port?: number): Bun.Server<undefined> {
   const resolvedPort = port ?? Number(process.env.MOCK_PORT ?? 9999);
   return Bun.serve({
+    // Bun defaults to 0.0.0.0 (LAN-exposed, unauthenticated echo API) when
+    // no hostname is set. Default to loopback-only for a bare host process
+    // (dev, e2e). A container's own loopback is isolated from Docker's
+    // port-publish forwarding (which targets the container's bridge IP,
+    // not 127.0.0.1), so infra/docker-compose.yml opts back into 0.0.0.0
+    // via MOCK_HOST — safe there because the host-side publish is itself
+    // scoped to 127.0.0.1.
+    hostname: process.env.MOCK_HOST ?? "127.0.0.1",
     port: resolvedPort,
     async fetch(req) {
       const url = new URL(req.url);

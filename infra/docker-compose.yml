@@ -4,7 +4,7 @@ services:
       context: ../vendor/omniroute
       target: runner-base
     ports:
-      - "20128:20128"
+      - "127.0.0.1:20128:20128"
     environment:
       PORT: "20128"
       DATA_DIR: /app/data
@@ -16,9 +16,14 @@ services:
     build:
       context: ./mock-provider
     ports:
-      - "9999:9999"
+      - "127.0.0.1:9999:9999"
     environment:
       MOCK_PORT: "9999"
+      # Container's own loopback is unreachable via Docker's port-publish
+      # forwarding (it targets the bridge IP, not 127.0.0.1) — bind on all
+      # interfaces inside the isolated container netns; the host-side
+      # publish above is what actually restricts external reach.
+      MOCK_HOST: "0.0.0.0"
     restart: unless-stopped
 
 volumes:
