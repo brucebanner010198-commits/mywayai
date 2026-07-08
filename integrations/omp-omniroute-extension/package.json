@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@mywayai/session-registry": "workspace:*",
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {

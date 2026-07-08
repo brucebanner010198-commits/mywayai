@@ -100,6 +100,96 @@ quota, usage, fallback chains, provider health, live session counts, role
 mapping, and key rotation. Run `/omni` with no arguments for the full command
 list.
 
+## Remote access (optional)
+
+This gives a phone-reachable list of your active omp sessions, gated by
+Tailscale device approval plus an OmniRoute-login-gated dashboard. Design
+rationale and threat model live in a local ADR (`docs/adr/`, gitignored —
+working design notes, not shipped in the repo) if you have one checked out;
+the steps below are self-contained without it.
+
+### Step 1 — set `tools.approvalMode` explicitly
+
+Do this before registering any remote session:
+
+```yaml
+tools:
+  approvalMode: <explicit-non-yolo-mode>
+```
+
+A full `/collab` link is an RCE-capable credential once you override the
+extension's warning with `--force`, because omp defaults tool approval with
+`settings?.get("tools.approvalMode") ?? "yolo"` when the setting is missing.
+
+### Step 2 — opt in per session
+
+Inside each omp session you want on the dashboard:
+
+```text
+/collab
+```
+
+`/collab` is the built-in omp command. It prints a join link and QR code. Copy
+the printed **full** link, not the `/collab view` read-only variant, then run in
+the same session:
+
+```text
+/remote register <link>
+```
+
+Use `/remote status` to inspect the registration and `/remote unregister` to
+remove it. This is intentionally a two-step flow: omp's extension API cannot
+invoke `/collab` programmatically, so `/remote` cannot auto-start sharing for
+you.
+
+### Step 3 — run the dashboard
+
+For foreground testing:
+
+```sh
+mywayai dashboard up [--host <tailscale-ip>] [--port <n>]
+```
+
+To install a login item/user service that survives reboot:
+
+```sh
+mywayai dashboard install
+```
+
+`install` writes the `launchd` or `systemd --user` unit and prints the exact
+load/enable command. The CLI does not auto-load it for you.
+
+### Step 4 — approve Tailscale devices
+
+Turn on **Device Approval** in the Tailscale admin console:
+
+https://login.tailscale.com/admin/settings/device-management
+
+Then manually approve each device that should reach the dashboard, including
+your phone and the computer running omp. This is one-time per device and is not
+automatable from this repo.
+
+### Mobile note
+
+Tailscale on iOS/Android can show "offline" after the phone idles because the
+OS suspends background networking aggressively. Foreground the Tailscale app or
+the dashboard to reconnect; this is normal, not a mywayai bug.
+
+### Security note
+
+Possession of a registered `/collab` link is equivalent to a working credential
+on that machine. Treat `~/.mywayai/sessions.json` like an API key file; it
+contains the full links and ships with `chmod 0600`.
+
+The dashboard's own login (`dash_session`) is a self-contained signed cookie,
+not a server-side session — `/logout` only clears the browser's copy, it
+doesn't revoke the token itself. If a device/cookie is lost or compromised,
+the real kill switch is: delete `~/.mywayai/dashboard.secret` and restart
+`mywayai dashboard up` (or restart the installed unit) — every outstanding
+`dash_session` cookie, everywhere, is instantly invalid, since they're all
+signed against that one secret. Revoking the device's Tailscale approval is
+the other half of losing a device; do both.
+
 ## Running the mock provider standalone
 
 ```sh

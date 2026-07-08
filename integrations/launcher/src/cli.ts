@@ -23,6 +23,13 @@ import {
   stopOmniRoute,
   writeModelsYaml,
 } from "@mywayai/omniroute-bridge";
+import {
+  getDashboardStatus,
+  installDashboardUnit,
+  startDashboardProcess,
+  stopDashboardProcess,
+  type DashboardOptions,
+} from "./dashboard.ts";
 
 const launcherRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -42,6 +49,8 @@ function parseArgs(argv: string[]): ParsedArgs {
     if (arg === "--seed-mock") flags["seed-mock"] = true;
     else if (arg === "--port") flags.port = own[++i] ?? "";
     else if (arg === "-f" || arg === "--follow") flags.follow = true;
+    else if (arg === "--host") flags.host = own[++i] ?? "";
+    else if (arg === "--allow-no-login") flags["allow-no-login"] = true;
   }
   return { flags, passthrough };
 }
@@ -136,17 +145,54 @@ async function cmdSync(): Promise<void> {
   process.exit(await runInherited([join(getRepoRoot(), "scripts", "subtree-pull.sh")]));
 }
 
+function dashboardOptionsFromFlags(flags: ParsedArgs["flags"]): DashboardOptions {
+  return {
+    port: flags.port ? Number(flags.port) : undefined,
+    host: typeof flags.host === "string" && flags.host ? flags.host : undefined,
+    allowNoLogin: flags["allow-no-login"] === true,
+  };
+}
+
+async function cmdDashboard(subcommand: string | undefined, args: string[]): Promise<void> {
+  const parsed = parseArgs(args);
+  switch (subcommand) {
+    case "up":
+      return startDashboardProcess(dashboardOptionsFromFlags(parsed.flags));
+    case "down":
+      return stopDashboardProcess();
+    case "status": {
+      const status = await getDashboardStatus();
+      console.log(`Dashboard: ${status.running ? "up" : "down"}${status.address ? ` (${status.address})` : ""}`);
+      console.log(`reachable: ${status.reachable ? "yes" : "no"}`);
+      console.log(`pidfile:   ${status.pidfile}`);
+      console.log(`log:       ${status.logfile}`);
+      if (status.pid) console.log(`pid:       ${status.pid}`);
+      return;
+    }
+    case "install":
+      return installDashboardUnit(dashboardOptionsFromFlags(parsed.flags));
+    default:
+      usage();
+  }
+}
+
 function usage(): never {
   console.error(
     [
       "Usage: mywayai <command> [options]",
       "",
       "Commands:",
-      "  up [--seed-mock] [--port <n>] [-- <omp args>]     Boot OmniRoute + omp (interactive)",
-      "  down                                              Stop the managed OmniRoute process",
-      "  status [--port <n>]                               Show reachability, pid, key state",
-      "  logs [-f]                                         Print (or follow) the OmniRoute log",
-      "  sync                                               Pull latest from both upstream subtrees",
+      "  up [--seed-mock] [--port <n>] [-- <omp args>]          Boot OmniRoute + omp (interactive)",
+      "  down                                                   Stop the managed OmniRoute process",
+      "  status [--port <n>]                                    Show reachability, pid, key state",
+      "  logs [-f]                                              Print (or follow) the OmniRoute log",
+      "  dashboard up [--port <n>] [--host <addr>] [--allow-no-login]",
+      "                                                         Start the Tailscale/localhost session dashboard",
+      "  dashboard down                                         Stop the managed dashboard process",
+      "  dashboard status                                       Show dashboard reachability, pid, and paths",
+      "  dashboard install [--port <n>] [--host <addr>] [--allow-no-login]",
+      "                                                         Write a launchd/systemd unit without enabling it",
+      "  sync                                                   Pull latest from both upstream subtrees",
     ].join("\n"),
   );
   process.exit(1);
@@ -164,6 +210,10 @@ async function main(): Promise<void> {
       return cmdStatus(parsed);
     case "logs":
       return cmdLogs(parsed);
+    case "dashboard": {
+      const [subcommand, ...dashboardArgs] = rest;
+      return cmdDashboard(subcommand, dashboardArgs);
+    }
     case "sync":
       return cmdSync();
     default:

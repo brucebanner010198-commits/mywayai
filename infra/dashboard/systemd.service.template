@@ -1,0 +1,13 @@
+[Unit]
+Description=mywayai dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -lc "{{BIN_PATH}} {{DASHBOARD_ARGS}}"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

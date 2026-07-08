@@ -1,6 +1,6 @@
 // omp extension exposing OmniRoute's admin surface (combos, quota, usage,
 // fallback, health, sessions, role mapping, key rotation) via the `/omni`
-// command and two agent tools.
+// command, plus `/remote` registration for OmniRoute's remote dashboard.
 //
 // Type-only import from @oh-my-pi/pi-coding-agent (no runtime dependency on
 // it — the built dist/omniroute.js is a standalone file). HTTP via the
@@ -9,9 +9,11 @@
 // package (see writeRoleMapping/rotateKeyHere below) — see docs/architecture.md.
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@oh-my-pi/pi-coding-agent";
+import type { SessionEntry } from "@mywayai/session-registry";
+import { isEntryAlive, readRegistry, removeRegistryEntry, upsertRegistryEntry } from "@mywayai/session-registry";
 import { chmod, mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import yaml from "js-yaml";
 
 // `registerTool`'s `TParams extends TSchema` (TSchema = the SDK's internal
@@ -66,6 +68,10 @@ function baseUrl(): string {
 }
 
 class OmniRouteUnreachableError extends Error {}
+
+const REMOTE_SESSION_ID = String(process.pid);
+const REMOTE_HEARTBEAT_MS = 30_000;
+let remoteHeartbeat: NodeJS.Timeout | undefined;
 
 /** Tiny typed fetch helper. Reads the key lazily per call so it survives `key rotate`. */
 async function omni<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -182,6 +188,164 @@ async function readModelRoles(): Promise<Record<string, string>> {
   }
 }
 
+async function readApprovalMode(): Promise<string | undefined> {
+  const path = agentConfigYamlPath();
+  try {
+    const parsed = yaml.load(await readFile(path, "utf8"));
+    const doc = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
+    const tools = doc.tools && typeof doc.tools === "object" ? (doc.tools as Record<string, unknown>) : {};
+    const approvalMode = tools.approvalMode;
+    if (typeof approvalMode !== "string") return undefined;
+    return approvalMode;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw err;
+  }
+}
+
+function parseRemoteRegisterArgs(rest: string[]): { link?: string; name?: string; force: boolean } {
+  const force = rest.includes("--force");
+  const positional = rest.filter((part) => part !== "--force");
+  const [link, ...nameParts] = positional;
+  const name = nameParts.join(" ").trim();
+  return { link, name: name || undefined, force };
+}
+
+function sessionNameForRemote(ctx: ExtensionCommandContext, pi: ExtensionAPI, explicitName?: string): string {
+  const nameFromContext = (ctx as ExtensionCommandContext & { getSessionName?: () => string | undefined }).getSessionName?.();
+  const fallbackName = basename(ctx.cwd) || ctx.cwd;
+  return explicitName ?? nameFromContext ?? pi.getSessionName() ?? fallbackName;
+}
+
+function collabSecretSegment(link: string): string | undefined {
+  let candidate = link.trim();
+  try {
+    candidate = decodeURIComponent(candidate);
+  } catch {
+    // Some terminals paste already-mangled fragments; the check is advisory,
+    // so keep inspecting the original text instead of blocking registration.
+  }
+  const hashIndex = candidate.indexOf("#");
+  if (hashIndex >= 0) {
+    const beforeHash = candidate.slice(0, hashIndex);
+    const fragment = candidate.slice(hashIndex + 1);
+    const browserWrapper = /^https?:\/\//.test(beforeHash) && !beforeHash.includes("/r/");
+    if (browserWrapper && (fragment.includes(".") || fragment.includes("#") || fragment.includes("/r/"))) {
+      candidate = fragment;
+    }
+  }
+  const separator = Math.max(candidate.lastIndexOf("."), candidate.lastIndexOf("#"));
+  if (separator < 0 || separator === candidate.length - 1) return undefined;
+  return candidate.slice(separator + 1).split(/[/?&]/, 1)[0];
+}
+
+function decodedBase64UrlBytes(value: string): number | undefined {
+  const unpadded = value.replace(/=+$/, "");
+  if (!/^[A-Za-z0-9_-]+$/.test(unpadded) || unpadded.length % 4 === 1) return undefined;
+  const bits = unpadded.length * 6;
+  return Math.floor(bits / 8);
+}
+
+function collabLinkWarning(link: string): string | undefined {
+  const secret = collabSecretSegment(link);
+  if (!secret) {
+    return "That does not look like a full /collab link: no trailing .<key> or #<key> secret was found.";
+  }
+  const bytes = decodedBase64UrlBytes(secret);
+  if (bytes === 32) {
+    return "That link looks like a view-only /collab view link (32-byte secret), not a full-control /collab link.";
+  }
+  if (bytes !== 48) {
+    return "That link's secret length is not the expected 48 raw bytes for a full /collab link; continuing because this is only a sanity check.";
+  }
+  return undefined;
+}
+
+function maskCollabLink(link: string): string {
+  if (link.length <= 8) return "…";
+  return `${link.slice(0, 8)}…`;
+}
+
+function startRemoteHeartbeat(entry: SessionEntry): void {
+  clearInterval(remoteHeartbeat);
+  remoteHeartbeat = setInterval(() => {
+    const next = { ...entry, lastActiveAt: new Date().toISOString() };
+    void upsertRegistryEntry(next).catch(() => undefined);
+  }, REMOTE_HEARTBEAT_MS);
+  remoteHeartbeat.unref?.();
+}
+
+async function stopRemoteHeartbeatAndRemove(): Promise<void> {
+  if (remoteHeartbeat) {
+    clearInterval(remoteHeartbeat);
+    remoteHeartbeat = undefined;
+  }
+  await removeRegistryEntry(REMOTE_SESSION_ID);
+}
+
+async function handleRemoteRegister(pi: ExtensionAPI, ctx: ExtensionCommandContext, rest: string[]): Promise<void> {
+  const { link, name, force } = parseRemoteRegisterArgs(rest);
+  if (!link) {
+    ctx.ui.notify("Usage: /remote register <link> [name] [--force]", "error");
+    return;
+  }
+
+  const approvalMode = await readApprovalMode();
+  const dangerousApprovalMode = approvalMode === undefined || approvalMode === "yolo";
+  const rceWarning =
+    "A full /collab link is an RCE-capable credential, and every tool call auto-approves under the current/default tools.approvalMode.";
+  if (dangerousApprovalMode) {
+    ctx.ui.notify(
+      force
+        ? `${rceWarning} Proceeding because --force was passed.`
+        : `Refusing to register this link. ${rceWarning} Set tools.approvalMode away from yolo, or pass --force if you accept the risk.`,
+      force ? "warning" : "error",
+    );
+    if (!force) return;
+  }
+
+  const shapeWarning = collabLinkWarning(link);
+  if (shapeWarning) ctx.ui.notify(shapeWarning, "warning");
+
+  const entry: SessionEntry = {
+    id: REMOTE_SESSION_ID,
+    name: sessionNameForRemote(ctx, pi, name),
+    cwd: ctx.cwd,
+    link,
+    lastActiveAt: new Date().toISOString(),
+    pid: process.pid,
+  };
+  await upsertRegistryEntry(entry);
+  startRemoteHeartbeat(entry);
+  ctx.ui.notify(
+    `Registered remote session "${entry.name}" at ${entry.cwd}. Use /remote unregister to remove it; if this process exits, the heartbeat stops and the registry prunes it.`,
+    "info",
+  );
+}
+
+async function handleRemoteStatus(ctx: ExtensionCommandContext): Promise<void> {
+  const entry = (await readRegistry()).find((item) => item.id === REMOTE_SESSION_ID);
+  if (!entry) {
+    ctx.ui.notify("Remote session is not registered.", "info");
+    return;
+  }
+  ctx.ui.notify(
+    [
+      `Remote session "${entry.name}"`,
+      `cwd: ${entry.cwd}`,
+      `pid: ${entry.pid} (${isEntryAlive(entry) ? "alive" : "stale"})`,
+      `lastActiveAt: ${entry.lastActiveAt}`,
+      `link: ${maskCollabLink(entry.link)}`,
+    ].join("\n"),
+    "info",
+  );
+}
+
+async function handleRemoteUnregister(ctx: ExtensionCommandContext): Promise<void> {
+  await stopRemoteHeartbeatAndRemove();
+  ctx.ui.notify("Remote session unregistered.", "info");
+}
+
 interface Combo {
   name: string;
   strategy?: string;
@@ -286,6 +450,13 @@ const OMNI_USAGE = [
   "  key rotate                    Regenerate the OmniRoute API key",
 ].join("\n");
 
+const REMOTE_USAGE = [
+  "Usage: /remote <register|status|unregister>",
+  "  register <link> [name] [--force]  Register this process's full /collab link for the remote dashboard",
+  "  status                            Show this process's registry entry with the link masked",
+  "  unregister                        Remove this process from the remote dashboard registry",
+].join("\n");
+
 export default function omniRouteExtension(pi: ExtensionAPI): void {
   const { z } = pi.zod;
 
@@ -304,6 +475,17 @@ export default function omniRouteExtension(pi: ExtensionAPI): void {
         : `OmniRoute is not running — start it with \`mywayai up\`.`,
       reachable ? "info" : "warning",
     );
+  });
+
+  pi.on("session_shutdown", async () => {
+    clearInterval(remoteHeartbeat);
+    remoteHeartbeat = undefined;
+    try {
+      await removeRegistryEntry(REMOTE_SESSION_ID);
+    } catch {
+      // Best-effort cleanup only: shutdown is already in progress and stale
+      // entries self-prune once their heartbeat stops.
+    }
   });
 
   pi.registerCommand("omni", {
@@ -334,6 +516,29 @@ export default function omniRouteExtension(pi: ExtensionAPI): void {
             ctx.ui.notify(OMNI_USAGE, "info");
         }
       });
+    },
+  });
+
+  pi.registerCommand("remote", {
+    description: "Remote dashboard: register, inspect, or unregister this /collab session",
+    handler: async (args, ctx) => {
+      const parts = args.trim().split(/\s+/).filter(Boolean);
+      const [sub, ...rest] = parts;
+
+      try {
+        switch (sub) {
+          case "register":
+            return handleRemoteRegister(pi, ctx, rest);
+          case "status":
+            return handleRemoteStatus(ctx);
+          case "unregister":
+            return handleRemoteUnregister(ctx);
+          default:
+            ctx.ui.notify(REMOTE_USAGE, "info");
+        }
+      } catch (err) {
+        ctx.ui.notify(err instanceof Error ? err.message : String(err), "error");
+      }
     },
   });
 

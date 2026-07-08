@@ -34,13 +34,16 @@ integrations/
   omniroute-bridge/        Node/Bun library: OmniRoute lifecycle, key
                             provisioning, mock seeding, role mapping,
                             models.yml writing. No omp dependency.
-  omp-omniroute-extension/ omp extension (`/omni` command + 2 agent tools).
-                            Deliberately duplicates ~60 lines from the bridge
-                            (see "Extension vs. bridge duplication" below)
-                            rather than depending on it.
+  session-registry/       Shared local `/collab` link registry
+                            (`~/.mywayai/sessions.json`) with atomic writes.
+  omp-omniroute-extension/ omp extension (`/omni` and `/remote` commands + 2
+                            agent tools). Deliberately duplicates ~60 lines
+                            from the bridge (see "Extension vs. bridge
+                            duplication" below) rather than depending on it.
   launcher/                `mywayai` CLI — composes the bridge's functions
                             into the day-to-day up/down/status/logs/sync
-                            workflow, then execs the pinned omp binary.
+                            workflow, dashboard up/down/status/install
+                            subcommands, then execs the pinned omp binary.
   e2e/                     Full-stack smoke test (bun:test) exercising the
                             real boot -> provision -> seed -> route chain.
 
@@ -108,15 +111,37 @@ itself.
 
 `integrations/omp-omniroute-extension/src/extension.ts` intentionally
 duplicates its role-mapping and key-rotation helpers (~60 lines) rather than
-importing `@mywayai/omniroute-bridge`. The extension is built once
-(`bun build --target bun`) into a single standalone `dist/omniroute.js` file
-that gets copied into `~/.omp/agent/extensions/` — it has no `node_modules`
-alongside it at install time, so it cannot resolve a workspace package
-dependency at runtime. The duplication is small, explicitly commented at both
-call sites, and each half only needs to change if OmniRoute's `/api/keys` or
+importing `@mywayai/omniroute-bridge`. `@mywayai/omniroute-bridge` shells out
+to `npm`/`node` and owns OmniRoute's process lifecycle — pulling it into the
+extension bundle would drag that surface along for no reason the extension
+needs. The duplication is small, explicitly commented at both call sites,
+and each half only needs to change if OmniRoute's `/api/keys` or
 `/api/combos` shapes change (rare, and would need updating in both places
 either way since the request shapes themselves are still duplicated schema
 knowledge, not shared code).
+
+This is a per-dependency judgment call, not a blanket rule: the extension
+*does* import `@mywayai/session-registry` (see "Remote control" below) for
+its `/remote` command, because `bun build --target bun` bundles workspace
+imports into the single standalone `dist/omniroute.js` it ships — there is
+no runtime `node_modules` resolution either way, bundled or not — and
+session-registry's locked, atomic read-modify-write is exactly the kind of
+shared correctness-sensitive logic worth reusing rather than re-forking.
+
+## Remote control
+
+`@mywayai/session-registry` is the shared local store for dashboard-visible
+`/collab` links: it writes `~/.mywayai/sessions.json` atomically, keeps the file
+`0600` under a `0700` state directory, and prunes entries by pid liveness plus
+last-active staleness. Writers serialize through `withLock`, so each heartbeat
+or unregister can update and prune safely without callers adding their own
+cross-process locking. A session is registered in two manual steps — run
+`/collab`, then `/remote register <link>` — because the extension cannot invoke
+the built-in slash command programmatically (verified against the published
+`@oh-my-pi/pi-coding-agent` SDK types: no `executeCommand`/`runCommand` exists).
+The dashboard proxies OmniRoute's `POST /api/auth/login` only as a credential
+check, then mints its own signed `dash_session` cookie. It never reuses or
+depends on OmniRoute's internal `auth_token` cookie.
 
 ## Known issues
 

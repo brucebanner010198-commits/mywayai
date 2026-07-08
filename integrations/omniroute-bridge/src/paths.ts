@@ -30,6 +30,18 @@ export function getLogDir(): string {
   return join(getStateDir(), "logs");
 }
 
+export function getDashboardLogFile(): string {
+  return join(getLogDir(), "dashboard.log");
+}
+
+export function getDashboardPidFile(): string {
+  return join(getStateDir(), "dashboard.pid");
+}
+
+export function getDashboardSecretFile(): string {
+  return join(getStateDir(), "dashboard.secret");
+}
+
 export function getOmniRouteLogFile(): string {
   return join(getLogDir(), "omniroute.log");
 }
