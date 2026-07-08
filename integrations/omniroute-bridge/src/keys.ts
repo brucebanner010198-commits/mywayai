@@ -38,6 +38,11 @@ export async function readKeyFile(): Promise<string | undefined> {
   }
 }
 
+/** Presence-only check — never returns the key itself. */
+export async function hasKeyFile(): Promise<boolean> {
+  return (await readKeyFile()) !== undefined;
+}
+
 export async function readKeyIdFile(): Promise<string | undefined> {
   try {
     const raw = (await readFile(getKeyIdFile(), "utf8")).trim();

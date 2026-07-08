@@ -23,8 +23,7 @@ export async function authedJson<T>(base: string, key: string, path: string, ini
     headers: { "content-type": "application/json", Authorization: `Bearer ${key}`, ...init.headers },
   });
   if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`OmniRoute request failed: ${init.method ?? "GET"} ${path} -> ${res.status} ${body.slice(0, 300)}`);
+    throw new Error(`OmniRoute request failed: ${init.method ?? "GET"} ${path} -> ${res.status}`);
   }
   return res.json() as Promise<T>;
 }

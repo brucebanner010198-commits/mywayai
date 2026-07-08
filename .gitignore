@@ -5,3 +5,10 @@ dist/
 .remember/tmp/
 docs/adr/
 docs/resilience-review.md
+.env
+.env.*
+!.env.example
+vendor/omniroute/.env
+*.key
+*.secret
+sessions.json

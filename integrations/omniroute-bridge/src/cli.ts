@@ -3,7 +3,7 @@
 // and shell scripting. The launcher (integrations/launcher) composes these
 // functions directly rather than shelling out to this CLI.
 
-import { isUp, provisionKey, readKeyFile, rotateKey, seedMock, startOmniRoute, stopOmniRoute } from "./index.ts";
+import { hasKeyFile, isUp, provisionKey, rotateKey, seedMock, startOmniRoute, stopOmniRoute } from "./index.ts";
 import { writeModelsYaml } from "./models-yaml.ts";
 import { writeRoleMapping } from "./roles.ts";
 import { getKeyFile, getPidFile, parsePort, resolveOmniRoutePort } from "./paths.ts";
@@ -61,10 +61,10 @@ async function main(): Promise<void> {
 
     case "status": {
       const up = await isUp(port);
-      const key = await readKeyFile();
+      const present = await hasKeyFile();
       console.log(`reachable: ${up}`);
       console.log(`pidfile:   ${getPidFile()}`);
-      console.log(`keyfile:   ${getKeyFile()} (${key ? "present" : "absent"})`);
+      console.log(`keyfile:   ${getKeyFile()} (${present ? "present" : "absent"})`);
       return;
     }
 

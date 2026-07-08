@@ -14,10 +14,10 @@ import {
   getOmniRouteVendorDir,
   getPidFile,
   getRepoRoot,
+  hasKeyFile,
   isUp,
   parsePort,
   provisionKey,
-  readKeyFile,
   resolveOmniRoutePort,
   seedMock,
   startOmniRoute,
@@ -106,7 +106,7 @@ async function ensureExtensionInstalled(): Promise<void> {
   if (!existsSync(distFile)) {
     console.log("Building the omp extension...");
     const code = await runInherited(
-      ["bun", "build", "src/extension.ts", "--target=bun", "--outfile=dist/omniroute.js"],
+      [process.execPath, "build", "src/extension.ts", "--target=bun", "--outfile=dist/omniroute.js"],
       extPkgDir,
     );
     if (code !== 0) throw new Error("Failed to build the omp extension.");
@@ -147,10 +147,10 @@ async function cmdDown(): Promise<void> {
 async function cmdStatus({ flags }: ParsedArgs): Promise<void> {
   const port = parsePort(typeof flags.port === "string" ? flags.port : undefined, "--port");
   const up = await isUp(port);
-  const key = await readKeyFile();
+  const present = await hasKeyFile();
   console.log(`OmniRoute: ${up ? "up" : "down"} (port ${resolveOmniRoutePort(port)})`);
   console.log(`pidfile:   ${getPidFile()}`);
-  console.log(`key file:  ${key ? "present" : "absent"}`);
+  console.log(`key file:  ${present ? "present" : "absent"}`);
 }
 
 async function cmdLogs({ flags }: ParsedArgs): Promise<void> {

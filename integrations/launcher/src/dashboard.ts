@@ -107,9 +107,15 @@ function assertPort(port: number, label: string): void {
   }
 }
 
-function rejectWildcardHost(host: string): void {
+function validateHost(host: string): void {
   if (host === "0.0.0.0" || host === "::") {
     throw new Error("Dashboard refuses to bind to 0.0.0.0 or ::. Use a Tailscale IP or 127.0.0.1.");
+  }
+  // installDashboardUnit substitutes this raw into a launchd plist (XML) /
+  // systemd unit file — reject anything outside a hostname/IPv4/bracketless-
+  // IPv6 shape so it can't inject XML or corrupt the generated unit.
+  if (!/^[A-Za-z0-9._:-]+$/.test(host)) {
+    throw new Error("Dashboard host must contain only letters, digits, '.', '_', ':', or '-'.");
   }
 }
 
@@ -277,7 +283,7 @@ async function tailscaleIPv4(): Promise<string | undefined> {
 
 async function resolveBindHost(explicitHost: string | undefined): Promise<string> {
   if (explicitHost) {
-    rejectWildcardHost(explicitHost);
+    validateHost(explicitHost);
     return explicitHost;
   }
   const tailnetHost = await tailscaleIPv4();

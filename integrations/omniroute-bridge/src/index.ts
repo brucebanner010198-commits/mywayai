@@ -1,5 +1,5 @@
 export { isUp, startOmniRoute, stopOmniRoute, type StartOmniRouteOptions } from "./server.ts";
-export { provisionKey, readKeyFile, readKeyIdFile, requireKey, rotateKey, type ProvisionKeyOptions } from "./keys.ts";
+export { hasKeyFile, provisionKey, rotateKey, type ProvisionKeyOptions } from "./keys.ts";
 export { MOCK_COMBO_NAME, MOCK_PREFIX, seedMock, type SeedMockOptions } from "./seed.ts";
 export { writeModelsYaml, type WriteModelsYamlOptions } from "./models-yaml.ts";
 export { VALID_ROLE_IDS, writeRoleMapping, type RoleId, type WriteRoleMappingOptions } from "./roles.ts";
