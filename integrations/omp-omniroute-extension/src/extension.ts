@@ -339,7 +339,7 @@ export default function omniRouteExtension(pi: ExtensionAPI): void {
           "warning",
         );
       }
-      await pi.sendUserMessage("/collab");
+      pi.sendUserMessage("/collab");
     }
   });
 
