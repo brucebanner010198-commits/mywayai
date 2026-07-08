@@ -3,3 +3,5 @@ dist/
 *.log
 .DS_Store
 .remember/tmp/
+docs/adr/
+docs/resilience-review.md
