@@ -23,7 +23,7 @@ import {
   omniRouteBaseUrl,
   resolveOmniRoutePort,
 } from "@mywayai/omniroute-bridge";
-import { isEntryAlive, readRegistry, type SessionEntry } from "@mywayai/session-registry";
+import { isAllowedCollabUrl, isEntryAlive, readRegistry, type SessionEntry } from "@mywayai/session-registry";
 
 export const DEFAULT_DASHBOARD_PORT = 7420;
 const REQUIRE_LOGIN_TIMEOUT_MS = 8_000;
@@ -326,14 +326,17 @@ function relativeTime(iso: string): string {
 }
 
 function dashboardPage(entries: SessionEntry[]): string {
-  const rows = entries.map((entry) => `<li>
+  const rows = entries.map((entry) => {
+    const href = isAllowedCollabUrl(entry.link) ? entry.link : "#";
+    return `<li>
       <div>
         <strong>${htmlEscape(entry.name)}</strong>
         <span>${htmlEscape(relativeTime(entry.lastActiveAt))}</span>
       </div>
       <code>${htmlEscape(entry.cwd)}</code>
-      <a href="${htmlEscape(entry.link)}" rel="noreferrer">Join</a>
-    </li>`).join("\n");
+      <a href="${htmlEscape(href)}" rel="noreferrer">Join</a>
+    </li>`;
+  }).join("\n");
   const content = rows || `<p class="empty">No live sessions are registered. In a local omp session, run <code>/collab</code>, copy the link, then register it with the remote command.</p>`;
   return `<!doctype html>
 <html lang="en">

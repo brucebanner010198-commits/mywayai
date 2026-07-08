@@ -1,12 +1,14 @@
 export type { SessionEntry } from "./types.ts";
 export {
   clearRegistry,
+  isAllowedCollabUrl,
   isEntryAlive,
   pruneRegistry,
   readLiveRegistry,
   readRegistry,
   removeRegistryEntry,
   upsertRegistryEntry,
+  validateSessionEntry,
 } from "./registry.ts";
 export { getRegistryFile, getRegistryLockFile, getStateDir } from "./paths.ts";
 export { acquireLock, withLock } from "./lock.ts";

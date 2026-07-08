@@ -10,7 +10,7 @@
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@oh-my-pi/pi-coding-agent";
 import type { SessionEntry } from "@mywayai/session-registry";
-import { isEntryAlive, readRegistry, removeRegistryEntry, upsertRegistryEntry } from "@mywayai/session-registry";
+import { isAllowedCollabUrl, isEntryAlive, readRegistry, removeRegistryEntry, upsertRegistryEntry } from "@mywayai/session-registry";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -306,6 +306,14 @@ async function handleRemoteRegister(pi: ExtensionAPI, ctx: ExtensionCommandConte
 
   const shapeWarning = collabLinkWarning(link);
   if (shapeWarning) ctx.ui.notify(shapeWarning, "warning");
+
+  if (!isAllowedCollabUrl(link)) {
+    ctx.ui.notify(
+      "Refusing to register: link scheme must be https (or http on a local/Tailscale host).",
+      "error",
+    );
+    return;
+  }
 
   const entry: SessionEntry = {
     id: REMOTE_SESSION_ID,
