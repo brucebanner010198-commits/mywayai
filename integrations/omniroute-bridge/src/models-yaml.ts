@@ -8,7 +8,7 @@ import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import yaml from "js-yaml";
 import { getKeyFile, getModelsYamlPath, omniRouteBaseUrl } from "./paths.ts";
-import { loadYamlDoc, type YamlDoc } from "./yaml.ts";
+import { atomicWriteFile, isPlainRecord, loadYamlDoc, type YamlDoc } from "./yaml.ts";
 
 export interface WriteModelsYamlOptions {
   port?: number;
@@ -19,7 +19,7 @@ export async function writeModelsYaml(opts: WriteModelsYamlOptions = {}): Promis
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
 
   const doc = await loadYamlDoc(path);
-  const providers = (doc.providers && typeof doc.providers === "object" ? doc.providers : {}) as YamlDoc;
+  const providers = (isPlainRecord(doc.providers) ? doc.providers : {}) as YamlDoc;
 
   // REQUIRED: OmniRoute's `/api/v1/models` catalog reports `supported_endpoints`
   // (not omp's expected `supported_endpoint_types`), so omp's proxy discovery
@@ -33,5 +33,5 @@ export async function writeModelsYaml(opts: WriteModelsYamlOptions = {}): Promis
   };
   doc.providers = providers;
 
-  await Bun.write(path, yaml.dump(doc, { lineWidth: -1 }));
+  await atomicWriteFile(path, yaml.dump(doc, { lineWidth: -1 }));
 }

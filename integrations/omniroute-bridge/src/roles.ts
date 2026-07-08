@@ -7,7 +7,7 @@ import yaml from "js-yaml";
 import { authedJson } from "./http.ts";
 import { getAgentConfigYamlPath, omniRouteBaseUrl } from "./paths.ts";
 import { requireKey } from "./keys.ts";
-import { loadYamlDoc } from "./yaml.ts";
+import { atomicWriteFile, isPlainRecord, loadYamlDoc } from "./yaml.ts";
 
 export const VALID_ROLE_IDS = [
   "default",
@@ -59,14 +59,11 @@ export async function writeRoleMapping(map: Record<string, string>, opts: WriteR
   const path = getAgentConfigYamlPath();
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   const doc = await loadYamlDoc(path);
-  const modelRoles = (doc.modelRoles && typeof doc.modelRoles === "object" ? doc.modelRoles : {}) as Record<
-    string,
-    string
-  >;
+  const modelRoles = (isPlainRecord(doc.modelRoles) ? doc.modelRoles : {}) as Record<string, string>;
   for (const [role, comboName] of Object.entries(map)) {
     modelRoles[role] = `omniroute/${comboName}`;
   }
   doc.modelRoles = modelRoles;
 
-  await Bun.write(path, yaml.dump(doc, { lineWidth: -1 }));
+  await atomicWriteFile(path, yaml.dump(doc, { lineWidth: -1 }));
 }
