@@ -12,6 +12,7 @@ export const MOCK_COMBO_NAME = "test-combo";
 interface ProviderNode {
   id: string;
   prefix?: string;
+  baseUrl?: string;
 }
 
 interface ProviderConnection {
@@ -21,7 +22,15 @@ interface ProviderConnection {
 async function ensureMockProviderNode(base: string, key: string, mockPort: number): Promise<string> {
   const { nodes } = await authedJson<{ nodes: ProviderNode[] }>(base, key, "/api/provider-nodes");
   const existing = nodes.find((n) => n.prefix === MOCK_PREFIX);
-  if (existing) return existing.id;
+  if (existing) {
+    const expected = `http://localhost:${mockPort}/v1`;
+    if (existing.baseUrl && existing.baseUrl !== expected) {
+      throw new Error(
+        `Refusing to seed: a provider node with prefix "mock" already exists but points at ${existing.baseUrl}, not the local mock (${expected}). Remove it or use a fresh OMNIROUTE state dir.`,
+      );
+    }
+    return existing.id;
+  }
 
   const { node } = await authedJson<{ node: ProviderNode }>(base, key, "/api/provider-nodes", {
     method: "POST",
