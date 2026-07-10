@@ -14,10 +14,16 @@ This repo integrates two independently-released upstream projects:
   pluggable extension SDK.
 
 omp is the front end: every LLM call it makes is routed through OmniRoute
-(`providers.omniroute` in `~/.omp/agent/models.yml`), omp's model *roles*
-(`default`, `smol`, `plan`, …) map to OmniRoute *combos*, and OmniRoute's own
-controls (combos, quota, usage, fallback, health, sessions, key rotation) are
-surfaced inside an omp session through the `/omni` command.
+(`providers.omniroute` in `~/.omp/agent/models.yml`). **Target state**
+(`docs/adr/0003-auto-routing-first.md`): omp's model *roles* (`default`,
+`smol`, `plan`, …) map by default onto OmniRoute's own `auto/*` routing
+targets — OmniRoute picks the model — with an explicit `pin`-to-one-combo
+mode kept as the manual override, and omp's native multi-provider config as
+an automatic fallback when OmniRoute itself is unreachable. The diagram
+below still reflects the currently-implemented static-combo path; OmniRoute's
+own controls (combos, quota, usage, fallback, health, sessions, key
+rotation) are surfaced inside an omp session through the `/omni` command
+either way.
 
 Both upstreams release roughly daily, so both are vendored as
 `git subtree --squash` pulls (see `docs/upstream-sync.md`) — **vendored trees
